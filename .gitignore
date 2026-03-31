@@ -1,0 +1,23 @@
+# Root .gitignore
+node_modules/
+.DS_Store
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Prisma
+/backend/prisma/migrations/
+/backend/generated/
+
+# Gemini tmp files
+.gemini/
