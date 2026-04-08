@@ -169,3 +169,84 @@ Returns HTTP 409 if the requested transition is not in the allowed list.
 ## 27. CLAUDE.md Fully Rewritten
 **Decision:** Replaced the original `CLAUDE.md` (Session 1) with a comprehensive updated version covering: all 4 Prisma enums, updated file structure (routes/, middleware/, lib/), full API endpoint table, Phase 1.5 status, batch route ordering warning, and updated Phase 2 readiness notes.
 **Files changed:** `CLAUDE.md`
+
+---
+
+# Session 3 — Phase 2: Shopee CSV Import + Line OA Slip Confirmation
+**Date:** 2026-04-07
+**Session performed by:** Claude Code (claude-sonnet-4-6)
+
+---
+
+## 28. Shopee API → CSV Upload (Strategic Pivot)
+**Decision:** Abandoned the Shopee Messaging API integration (built in Session 2 by Gemini). Replaced with a multipart CSV upload endpoint that accepts Packing List exports from Shopee Seller Center.
+**Rationale:** Parn could not obtain `SHOPEE_PARTNER_ID` / `SHOPEE_PARTNER_KEY` — Shopee API access requires business verification that is unavailable for this shop tier. CSV export from Seller Center is always accessible with no API credentials. The `ShopeeService` class in `integrations/shopee.ts` is kept but unused.
+**New endpoint:** `POST /api/integrations/shopee/upload` — multer memoryStorage, 5 MB limit, CSV MIME + extension filter.
+**Files changed:** `integration-routes.ts` (rewritten), `integrations/shopee-csv.ts` (new), `FilterBar.tsx`, `ImportCsvModal.tsx` (new), `useOrders.ts`
+
+---
+
+## 29. CSV Column Normalization for Thai + English Headers
+**Decision:** `ShopeeCSVParser` normalizes all column headers via a `COLUMN_MAP` dictionary (33 entries) before processing rows. Shopee Thai locale exports Thai headers; English locale exports English headers. Both are mapped to the same canonical keys: `orderId`, `sku`, `quantity`, `price`, `shipByDate`.
+**Also handled:** UTF-8 BOM (common in Shopee CSV exports) — csv-parse `bom: true` option strips it automatically.
+**Files changed:** `backend/src/integrations/shopee-csv.ts`
+
+---
+
+## 30. Multi-Row CSV Grouping by Order ID
+**Decision:** Shopee Packing List CSVs emit one row per item variant (a 2-item order = 2 rows with same Order ID). The parser groups rows into `ParsedShopeeOrder[]` by `orderId` before returning. Each order has an `items[]` array.
+**Rationale:** `OrderService.createOrder` expects one call per order with an items array. Without grouping, each CSV row would try to create a separate single-item order, breaking multi-item orders entirely.
+**Files changed:** `backend/src/integrations/shopee-csv.ts`
+
+---
+
+## 31. CSV Import Returns HTTP 200 with Partial Results
+**Decision:** `POST /api/integrations/shopee/upload` always returns HTTP 200 with `{ created: N, skipped: N, errors: [{orderId, reason}] }`. Errors per row do not abort the whole upload.
+**Rationale:** Returning 4xx on any row failure would force staff to manually fix the CSV and re-upload. Partial success lets good rows through and surfaces only the bad rows for manual handling. Matches Shopee's own batch API behavior.
+**Files changed:** `backend/src/routes/integration-routes.ts`
+
+---
+
+## 32. Line OA: Slip-First Flow (Admin Creates Order, Customer Confirms)
+**Decision:** Line OA integration does NOT auto-create orders from customer messages. The workflow is: (1) admin creates a LINE order manually via `NewOrderModal`, (2) customer sends slip image to Line OA, (3) webhook marks the order as `slipReceived=true`.
+**Rationale:** Shopee/TikTok orders are structured (SKU + qty in the platform). Line messages are freeform Thai text. Parsing order details from chat messages reliably requires NLP — overkill for a small internal tool. Admin-creates + customer-confirms-via-slip is lower friction and more reliable.
+**Alternative considered:** LIFF form (customer fills structured form) — rejected as requiring more Line Developers setup and customer education.
+**Files changed:** `NewOrderModal.tsx` (new), `useOrders.ts`, `packing/page.tsx`
+
+---
+
+## 33. Line Webhook: Raw Body Required, express.json() Bypassed
+**Decision:** Added a conditional in `index.ts` that skips `express.json()` for `/api/integrations/line/webhook`. The route itself applies `express.raw({ type: 'application/json' })`.
+**Rationale:** Line's HMAC-SHA256 signature (`X-Line-Signature` header) is computed over the raw request body bytes. `express.json()` parses and discards the raw buffer before the route handler runs — signature validation would always fail. This is a well-known Line webhook gotcha.
+**Files changed:** `backend/src/index.ts`, `backend/src/routes/integration-routes.ts`
+
+---
+
+## 34. Line Slip Matching Strategy
+**Decision:** When a slip image arrives on the Line webhook, the backend uses this matching priority:
+1. Find PENDING LINE order where `lineUserId` matches (repeat customer already linked)
+2. Fallback: find most recent PENDING LINE order where `lineUserId IS NULL` (new customer, first slip)
+3. If no match: still reply to customer with acknowledgement; admin resolves manually
+**Rationale:** Admin creates orders before the customer's `lineUserId` is known. The fallback covers the first-time case. The "most recent" heuristic works reliably when orders come in sequentially (the common case). Ambiguity when multiple PENDING LINE orders exist simultaneously is flagged by the SLIP badge for admin to resolve.
+**Files changed:** `backend/src/integrations/line.ts`
+
+---
+
+## 35. `slipReceived` / `lineUserId` Added to `Order` Model (Not a Separate Table)
+**Decision:** Added `lineUserId String?`, `slipReceived Boolean @default(false)`, `slipReceivedAt DateTime?` directly to the `Order` Prisma model.
+**Rationale:** Slip confirmation is a 1:1 event per order. A separate `LineSlip` table adds join complexity with no benefit at this scale. Nullable fields are zero-cost for non-LINE orders. Applied via `npx prisma db push` (no force-reset needed — adding nullable fields is non-destructive).
+**Files changed:** `backend/prisma/schema.prisma`
+
+---
+
+## 36. AWAITING SLIP / SLIP ✓ Badges on OrderCard
+**Decision:** LINE orders show `AWAITING SLIP` (yellow, pulsing) when `slipReceived=false` and status is PENDING. They show `SLIP ✓` (green, static) once `slipReceived=true`.
+**Rationale:** Admin needs to know at a glance which LINE orders are waiting for payment confirmation before starting to pack. The pulse animation draws attention without being disruptive. The badge disappears from non-LINE orders (SHOPEE/TIKTOK don't use this flow).
+**Files changed:** `frontend/src/components/packing/OrderCard.tsx`
+
+---
+
+## 37. NewOrderModal — Manual LINE/TikTok Order Entry
+**Decision:** Added a "NEW ORDER" button (green, `+` icon) next to the CSV import button in FilterBar. Opens `NewOrderModal.tsx` — a form with channel selector (LINE/TIKTOK), order reference/customer name, dynamic item rows (variant dropdown + qty + price), auto-computed total.
+**Rationale:** LINE and TikTok orders originate from chat — there is no CSV export and no API. Staff must be able to create these orders manually in the dashboard. The form calls the existing `POST /api/orders` endpoint, which already exists with full Zod validation.
+**Files changed:** `NewOrderModal.tsx` (new), `FilterBar.tsx`, `packing/page.tsx`, `useOrders.ts`

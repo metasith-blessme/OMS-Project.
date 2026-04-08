@@ -94,16 +94,44 @@ export default function OrderCard({
       {/* Header */}
       <div className={`p-5 flex justify-between items-start border-b border-gray-100 dark:border-gray-800 ${shipToday && order.status !== 'FINISHED' ? 'bg-red-50/30 dark:bg-red-900/5' : ''}`}>
         <div className="space-y-1">
-          <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${
-            order.channel === 'SHOPEE' ? 'bg-orange-100 text-orange-700' :
-            order.channel === 'TIKTOK' ? 'bg-gray-900 text-white' :
-            'bg-green-100 text-green-700'
-          }`}>
-            {order.channel}
-          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${
+              order.channel === 'SHOPEE' ? 'bg-orange-100 text-orange-700' :
+              order.channel === 'TIKTOK' ? 'bg-gray-900 text-white' :
+              'bg-green-100 text-green-700'
+            }`}>
+              {order.channel}
+            </span>
+            {order.channel === 'LINE' && order.slipReceived && (
+              <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                SLIP ✓
+              </span>
+            )}
+            {order.channel === 'LINE' && !order.slipReceived && order.status === 'PENDING' && (
+              <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 animate-pulse">
+                AWAITING SLIP
+              </span>
+            )}
+          </div>
           <h2 className="text-lg font-black text-gray-900 dark:text-white tracking-tight leading-tight">{order.channelOrderId}</h2>
         </div>
-        <div className={`px-2 py-1 rounded-lg text-[10px] font-black ${selected ? 'opacity-0' : ''} ${label.class}`}>{label.text}</div>
+        <div className="flex flex-col items-end gap-2">
+          <div className={`px-2 py-1 rounded-lg text-[10px] font-black ${selected ? 'opacity-0' : ''} ${label.class}`}>{label.text}</div>
+          {!selectable && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onStatusUpdate(order.id, 'CANCELLED'); }}
+              aria-label="Delete order"
+              className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 flex items-center justify-center transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6M14 11v6" />
+                <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Items — always visible */}

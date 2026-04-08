@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { prisma } from './lib/prisma';
 import { httpLogger } from './lib/logger';
 import { errorHandler } from './middleware/error-handler';
+import { bearerAuth } from './middleware/auth';
 import orderRoutes from './routes/order-routes';
 import productRoutes from './routes/product-routes';
 import integrationRoutes from './routes/integration-routes';
@@ -14,8 +15,13 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+// Line webhook needs raw body for HMAC signature validation — exclude it from express.json()
+app.use((req, res, next) => {
+  if (req.path === '/api/integrations/line/webhook') return next();
+  express.json()(req, res, next);
+});
 app.use(httpLogger);
+app.use(bearerAuth);
 
 // Health check
 app.get('/api/health', async (_req, res) => {

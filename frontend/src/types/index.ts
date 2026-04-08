@@ -20,8 +20,25 @@ export interface Order {
   packedBy?: string;
   totalQuantity: number;
   total: number;
+  lineUserId?: string;
+  slipReceived: boolean;
+  slipReceivedAt?: string;
   createdAt: string;
   orderItems: OrderItem[];
+}
+
+export interface CreateOrderPayload {
+  channel: 'LINE' | 'TIKTOK' | 'SHOPEE';
+  channelOrderId: string;
+  status: 'PENDING';
+  total: number;
+  items: { productVariantId: string; quantity: number; price: number }[];
+}
+
+export interface ImportResult {
+  created: number;
+  skipped: number;
+  errors: { reason: string; count: number; sampleOrderIds: string[] }[];
 }
 
 export interface Product {

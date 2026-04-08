@@ -3,10 +3,11 @@ import { getOrderCategory, getShipByDate } from '../utils/order-utils';
 import { prisma } from '../lib/prisma';
 
 // Valid state transitions map
+// FINISHED → CANCELLED represents a customer return / refund — stock is restored.
 const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PENDING:   ['PACKING', 'CANCELLED'],
   PACKING:   ['FINISHED', 'PENDING', 'CANCELLED'],
-  FINISHED:  ['PACKING', 'PENDING'],
+  FINISHED:  ['PACKING', 'PENDING', 'CANCELLED'],
   CANCELLED: ['PENDING'],
 };
 
@@ -17,21 +18,18 @@ export class OrderService {
     status: OrderStatus;
     total: number;
     items: { productVariantId: string; quantity: number; price: number }[];
+    shipByDate?: Date;
   }) {
     const { category, totalQuantity } = getOrderCategory(data.items);
     const createdAt = new Date();
-    const shipByDate = getShipByDate(createdAt);
+    const shipByDate = data.shipByDate ?? getShipByDate(createdAt);
 
     return await prisma.$transaction(async (tx) => {
-      const order = await tx.order.upsert({
-        where: { channelOrderId: data.channelOrderId },
-        update: {
-          status: data.status,
-          total: data.total,
-          category,
-          totalQuantity
-        },
-        create: {
+      // Pure create — duplicates throw P2002 so callers can decide whether to skip or surface.
+      // Earlier this was an upsert, which silently overwrote existing PACKING orders without
+      // restoring their already-deducted inventory and left stock in an inconsistent state.
+      const order = await tx.order.create({
+        data: {
           channel: data.channel,
           channelOrderId: data.channelOrderId,
           status: data.status,

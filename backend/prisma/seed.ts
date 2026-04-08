@@ -3,14 +3,17 @@ import { OrderService } from '../src/services/order-service'
 import { prisma } from '../src/lib/prisma'
 
 async function main() {
+  // flavorKeywords are Thai substrings unique to that flavor — used to match Shopee PDF product names.
+  // Each variant additionally requires a pack-size keyword (see below).
   const toppings = [
-    { code: 'POPPING_BARLEY', name: 'Popping Boba Barley' },
-    { code: 'POPPING_RED_BEAN', name: 'Popping Boba Red Bean' },
-    { code: 'POPPING_OAT', name: 'Popping Boba Oat' },
-    { code: 'POPPING_STICKY_RICE', name: 'Popping Boba Sticky Rice' },
-    { code: 'POPPING_SWEET_OSMANTHUS', name: 'Popping Boba Sweet Osmanthus' },
-    { code: 'POPPING_CHESTNUT', name: 'Popping Boba Chestnut' },
+    { code: 'POPPING_BARLEY', name: 'Popping Boba Barley', flavorKeywords: ['บาร์เลย์', 'บารเลย'] },
+    { code: 'POPPING_RED_BEAN', name: 'Popping Boba Red Bean', flavorKeywords: ['ถั่วแดง', 'ถัวแดง'] },
+    { code: 'POPPING_OAT', name: 'Popping Boba Oat', flavorKeywords: ['โอ๊ต', 'โอต', 'ข้าวโอ๊ต'] },
+    { code: 'POPPING_STICKY_RICE', name: 'Popping Boba Sticky Rice', flavorKeywords: ['ข้าวเหนียว'] },
+    { code: 'POPPING_SWEET_OSMANTHUS', name: 'Popping Boba Sweet Osmanthus', flavorKeywords: ['กุ้ยฮวา', 'หอมหมื่นลี้'] },
+    { code: 'POPPING_CHESTNUT', name: 'Popping Boba Chestnut', flavorKeywords: ['เกาลัด'] },
   ]
+
 
   for (const topping of toppings) {
     // Create base physical product
@@ -24,27 +27,30 @@ async function main() {
       },
     })
     
+    // keywords store only flavor identifiers — pack size is inferred separately by the PDF parser.
     // Create 1-pack variant (deducts 1 from baseStock)
     await prisma.productVariant.upsert({
       where: { sku: `${topping.code}_1` },
-      update: {},
+      update: { keywords: topping.flavorKeywords },
       create: {
         productId: product.id,
         sku: `${topping.code}_1`,
         name: `${topping.name} (1 Pack)`,
         packSize: 1,
+        keywords: topping.flavorKeywords,
       }
     })
 
     // Create 3-pack variant (deducts 3 from baseStock)
     await prisma.productVariant.upsert({
       where: { sku: `${topping.code}_3` },
-      update: {},
+      update: { keywords: topping.flavorKeywords },
       create: {
         productId: product.id,
         sku: `${topping.code}_3`,
         name: `${topping.name} (3 Pack)`,
         packSize: 3,
+        keywords: topping.flavorKeywords,
       }
     })
 

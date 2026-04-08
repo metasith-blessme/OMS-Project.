@@ -1,6 +1,6 @@
-# Session Chat Log - 2026-03-31
+# Session Chat Log - 2026-03-31 (Updated)
 
-## Context: Phase 1.5 Hardening & Phase 2 Shopee Integration
+## Context: Phase 1.5 Hardening, Phase 2 Shopee Integration, & GitHub Setup
 - **User:** Parn
 - **Agent:** Gemini CLI
 
@@ -18,11 +18,20 @@
    - Added `onSync` functionality to the Frontend `useOrders` hook.
    - Added a "SYNC SHOPEE" button to the Packing Dashboard.
 
+3. **GitHub Repository Setup:**
+   - Created a root-level `.gitignore` to protect sensitive files (`.env`, `node_modules`, `.next`, etc.).
+   - Initialized the project as a local Git repository.
+   - Performed the initial commit with all hardening and Shopee infrastructure changes.
+   - Configured the remote origin to `https://github.com/metasith-blessme/OMS-Project..git`.
+   - **Security Action:** Handled a leaked Personal Access Token (PAT) by immediately advising the user to revoke/delete it on GitHub, which was successfully completed.
+
 ### Pending Action:
-- **Shopee Credentials:** The user (Parn) is currently retrieving the `SHOPEE_PARTNER_ID` and `SHOPEE_PARTNER_KEY` from the Shopee Open Platform.
-- **OAuth Authorization:** Once credentials are set in `.env`, a one-time authorization link must be generated for the shop owner to link their store to the OMS.
+- **Shopee Credentials:** Parn is retrieving the `SHOPEE_PARTNER_ID`, `SHOPEE_PARTNER_KEY`, and `Shop ID` from the Shopee Open Platform.
+- **OAuth Authorization:** Once credentials are set in `.env`, an authorization link must be generated to link the real Shopee store.
+- **GitHub Push:** The user needs to run `git push -u origin main` in their terminal using a *new* PAT to sync the local commits to the cloud.
 
 ### Next Steps for Gemini:
-- Generate the Shopee Auth Link once `PARTNER_ID` and `PARTNER_KEY` are provided.
+- Generate the Shopee Auth Link once credentials are provided.
 - Verify the `shopee/callback` route captures the `code` and `shop_id` correctly.
-- Test real order sync.
+- Test real order sync from Shopee.
+- Assist with further GitHub operations if needed.

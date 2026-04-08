@@ -12,7 +12,9 @@
       "Bash(python3 -c \":*)",
       "WebSearch",
       "WebFetch(domain:partner.tiktokshop.com)",
-      "Bash(grep -r \"shopee\\\\|tiktok\\\\|line\\\\|webhook\\\\|integration\\\\|channel\\\\|platform\" /Users/metasithjumpatip/Desktop/Blessme/OMS-Project/frontend/src --include=*.ts --include=*.tsx)"
+      "Bash(grep -r \"shopee\\\\|tiktok\\\\|line\\\\|webhook\\\\|integration\\\\|channel\\\\|platform\" /Users/metasithjumpatip/Desktop/Blessme/OMS-Project/frontend/src --include=*.ts --include=*.tsx)",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

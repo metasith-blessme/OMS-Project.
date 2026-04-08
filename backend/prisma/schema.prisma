@@ -53,6 +53,7 @@ model ProductVariant {
   sku             String            @unique // e.g., 'POPPING_BARLEY_1', 'POPPING_BARLEY_3'
   name            String
   packSize        Int               @default(1) // Number of base products this variant consumes (1 or 3)
+  keywords        String[]          @default([]) // Thai substrings used to match Shopee PDF product names to this variant
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
@@ -88,12 +89,16 @@ model Order {
   finishedAt      DateTime?
   totalQuantity   Int           @default(0)
   total           Float         @default(0)
+  lineUserId      String?
+  slipReceived    Boolean       @default(false)
+  slipReceivedAt  DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   orderItems      OrderItem[]
 
   @@index([status])
   @@index([channel])
+  @@index([channel, status])
   @@index([finishedAt])
   @@index([createdAt])
 }

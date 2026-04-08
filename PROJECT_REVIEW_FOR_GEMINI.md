@@ -1,5 +1,7 @@
 # OMS Project Review & Handoff — For Gemini
 
+**Last updated:** 2026-04-07 by Claude Code (claude-sonnet-4-6)
+
 This document is written by Claude Code to brief Gemini on what has been reviewed, fixed, and what work remains. Read this alongside `decision_log.md` (Gemini's original) and `decision_log_claude.md` (Claude's additions).
 
 ---
@@ -47,9 +49,28 @@ Claude performed a full codebase review and implemented all critical fixes:
 | C | Backend `.env.example` created | ✅ Done |
 | D | Fix `seed.ts` to use PrismaClient singleton | ✅ Done |
 
+### Session 4 (2026-04-07) — Phase 2: Shopee CSV Import + Line OA (Claude)
+
+| # | Feature | Status |
+|---|---|---|
+| 28 | Shopee API abandoned → CSV upload from Seller Center | ✅ Done |
+| 29 | CSV parser: Thai + English header normalization | ✅ Done |
+| 30 | CSV parser: multi-row grouping by Order ID | ✅ Done |
+| 31 | `POST /api/integrations/shopee/upload` endpoint (multer + partial results) | ✅ Done |
+| 32 | `ImportCsvModal.tsx` — drag/drop, upload, result summary | ✅ Done |
+| 33 | FilterBar: replaced SYNC SHOPEE with CSV + NEW ORDER buttons | ✅ Done |
+| 34 | `NewOrderModal.tsx` — manual LINE/TikTok order entry form | ✅ Done |
+| 35 | `POST /api/integrations/line/webhook` — HMAC validation, slip matching | ✅ Done |
+| 36 | `backend/src/integrations/line.ts` — LineService + Thai auto-reply | ✅ Done |
+| 37 | `express.json()` bypass for Line webhook (raw body for HMAC) | ✅ Done |
+| 38 | DB: `slipReceived`, `slipReceivedAt`, `lineUserId` fields on `Order` | ✅ Done |
+| 39 | OrderCard: AWAITING SLIP / SLIP ✓ badges for LINE orders | ✅ Done |
+| 40 | `useOrders`: `importShopeeCSV()` + `createOrder()` hook functions | ✅ Done |
+| 41 | CLAUDE.md + decision_log_Claude.md + this file updated | ✅ Done |
+
 ---
 
-## 2. Current Project State (as of 2026-03-31)
+## 2. Current Project State (as of 2026-04-07)
 
 ### What Works Right Now
 - Packing dashboard at `http://localhost:3000/packing`
@@ -63,143 +84,132 @@ Claude performed a full codebase review and implemented all critical fixes:
 - **Batch packing:** Long-press to enter select mode → select multiple orders → summary modal → batch update
 - Packing summary modal showing aggregated quantities per SKU before confirming
 - 5-second polling for real-time updates
+- **Shopee CSV import:** Upload Packing List CSV → auto-parse → create orders (handles Thai + English headers)
+- **Manual order entry:** "+ ORDER" button → form to create LINE/TikTok orders with items
+- **Line OA slip webhook:** Receives slip images, marks matching order `slipReceived=true`, Thai auto-reply
+- **SLIP badges:** LINE order cards show "AWAITING SLIP" (pulse) or "SLIP ✓" (static)
 - Seeded data: 6 toppings × 2 variants + 4 sample orders
 
 ### Backend Structure (current)
 ```
 backend/src/
-├── index.ts                    ← App bootstrap, middleware setup, route mounting
+├── index.ts                      ← App bootstrap, middleware (Line webhook bypasses express.json)
 ├── lib/
-│   ├── prisma.ts               ← Singleton PrismaClient (always import from here)
-│   └── logger.ts               ← pino + pino-http logger
+│   ├── prisma.ts                 ← Singleton PrismaClient (always import from here)
+│   └── logger.ts                 ← pino + pino-http logger
 ├── routes/
-│   ├── order-routes.ts         ← All /api/orders/* routes (batch BEFORE /:id!)
-│   └── product-routes.ts       ← All /api/products/* routes
+│   ├── order-routes.ts           ← All /api/orders/* routes (batch BEFORE /:id!)
+│   ├── product-routes.ts         ← All /api/products/* routes
+│   └── integration-routes.ts     ← POST /shopee/upload + POST /line/webhook
+├── integrations/
+│   ├── shopee-csv.ts             ← CSV parser (Thai/English headers, multi-row grouping)
+│   ├── shopee.ts                 ← Legacy API-based ShopeeService (unused, kept for reference)
+│   └── line.ts                   ← LineService (HMAC validation, slip matching, reply)
 ├── middleware/
-│   ├── validate.ts             ← Zod validation middleware
-│   └── error-handler.ts        ← AppError class + centralized error handler
+│   ├── validate.ts               ← Zod validation middleware
+│   └── error-handler.ts          ← AppError class + centralized error handler
 ├── services/
-│   └── order-service.ts        ← All business logic
+│   └── order-service.ts          ← createOrder, updateOrderStatus
 └── utils/
-    └── order-utils.ts          ← getShipByDate (Bangkok TZ), getOrderCategory
+    └── order-utils.ts            ← getShipByDate (Bangkok TZ), getOrderCategory
 ```
 
 ### Frontend Structure (current)
 ```
 frontend/src/
-├── app/packing/page.tsx        ← Main dashboard (category sections + select mode)
+├── app/packing/page.tsx          ← Main dashboard
 ├── components/packing/
-│   ├── OrderCard.tsx           ← Long-press, select, status buttons
-│   ├── SelectionBar.tsx        ← Sticky bottom bar when orders selected
-│   ├── PackingSummaryModal.tsx ← Aggregated quantity summary before batch pack
-│   ├── FilterBar.tsx           ← Status/search/urgency filters
-│   ├── StockTicker.tsx         ← Scrolling stock level display
-│   ├── LoginScreen.tsx         ← Employee name entry
-│   └── ToastContainer.tsx      ← Toast notifications
+│   ├── OrderCard.tsx             ← Long-press, select, status buttons, SLIP badges
+│   ├── SelectionBar.tsx          ← Sticky bottom bar when orders selected
+│   ├── PackingSummaryModal.tsx   ← Aggregated quantity summary before batch pack
+│   ├── ImportCsvModal.tsx        ← CSV file picker, upload, result summary (NEW)
+│   ├── NewOrderModal.tsx         ← Manual LINE/TikTok order entry form (NEW)
+│   ├── FilterBar.tsx             ← Status/search/urgency filters + CSV + NEW ORDER buttons
+│   ├── StockTicker.tsx           ← Scrolling stock level display
+│   ├── LoginScreen.tsx           ← Employee name entry
+│   └── ToastContainer.tsx        ← Toast notifications
 ├── hooks/
-│   ├── useOrders.ts            ← Orders + products + batchUpdateStatus
-│   └── useAuth.ts              ← Employee name state
-└── types/index.ts              ← Shared TypeScript types
+│   ├── useOrders.ts              ← Orders + products + batchUpdateStatus + importShopeeCSV + createOrder
+│   └── useAuth.ts                ← Employee name state
+└── types/index.ts                ← Shared types incl. CreateOrderPayload, ImportResult
 ```
 
 ### API Endpoints (current)
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/orders?page=1&limit=50` | **Paginated orders** with metadata |
+| GET | `/api/health` | Health check + DB connectivity |
+| GET | `/api/orders?page=1&limit=50` | Paginated orders |
 | GET | `/api/orders/:id` | Single order |
-| POST | `/api/orders` | **Create order** (manual entry/integration) |
+| POST | `/api/orders` | Create order (manual entry) |
 | PATCH | `/api/orders/batch/status` | Batch status update |
 | PATCH | `/api/orders/:id/status` | Single order status update |
 | GET | `/api/products` | All products with variants and stock |
-| GET | `/api/health` | Health check |
+| POST | `/api/integrations/shopee/upload` | Upload Shopee Packing List CSV |
+| POST | `/api/integrations/line/webhook` | Line Messaging API webhook (raw body) |
 
 ### What Does NOT Exist Yet
-- No Shopee, TikTok Shop, or Line OA API integration (Phase 2)
-- No frontend pages beyond the packing dashboard (home page is Next.js boilerplate)
-- No authentication or authorization (just name-based employee tracking)
-- No tests (unit or integration)
-- No webhook receivers for platform order push notifications
+- No Line OA credentials in `.env` yet (needs LINE Developers Console setup)
+- No Shopee SKU mappings in `ChannelProduct` table (CSV import will error until seeded)
+- No TikTok Shop integration
+- No inventory management page (Phase 3)
+- No analytics/reporting page (Phase 3)
+- No webhooks / stock sync back to platforms (Phase 4)
+- No frontend pages beyond packing dashboard
+- No authentication/authorization (name-based employee tracking only)
+- No tests
 
 ---
 
-## 3. Remaining Issues for Gemini to Address
+## 3. What Gemini Should Work On Next
 
-### HIGH PRIORITY
+### MUST DO BEFORE LINE OA GOES LIVE
 
-**A. Add pagination to `GET /api/orders`**
-Currently fetches ALL orders in a single query. Will degrade as orders accumulate.
-```
-File: backend/src/routes/order-routes.ts
-Suggested: ?page=1&limit=20 with {data, total, page, totalPages} response
-```
+**A. LINE Developers Console setup (Parn does this, not code)**
+1. Go to developers.line.biz → create Messaging API channel on existing OA
+2. Get Channel Secret + Channel Access Token
+3. Add to `backend/.env`:
+   ```
+   LINE_CHANNEL_SECRET=xxx
+   LINE_CHANNEL_ACCESS_TOKEN=xxx
+   ```
+4. Deploy backend, set webhook URL: `https://your-domain/api/integrations/line/webhook`
+5. Disable auto-reply in LINE console
 
-**B. Fix `seed.ts` still uses `new PrismaClient()` directly**
-Should import from `src/lib/prisma.ts` for consistency.
+**B. Seed ChannelProduct table for Shopee SKU mapping**
+CSV import currently errors for every row because `ChannelProduct` is empty. You must insert rows mapping Shopee SKUs to internal `ProductVariant` IDs before the CSV upload is usable:
+```sql
+-- Example (use Prisma Studio or a seed script)
+INSERT INTO "ChannelProduct" (id, "productVariantId", channel, "channelSku", "createdAt", "updatedAt")
+VALUES (gen_random_uuid(), '<productVariantId>', 'SHOPEE', '<shopee_sku>', now(), now());
 ```
-File: backend/prisma/seed.ts
-```
-
-**C. CORS whitelist**
-Currently `app.use(cors())` allows ALL origins. Restrict to frontend origin in production.
-```
-File: backend/src/index.ts
-```
+Or create a Prisma seed script that inserts the real SKU mappings.
 
 ### MEDIUM PRIORITY
 
-**D. Add `POST /api/orders` route**
-`OrderService.createOrder()` exists but has no route. Needed for platform integrations and manual order entry.
-
-**E. Frontend home page (`/`) is still boilerplate**
-`frontend/src/app/page.tsx` is the default Next.js template. Replace with redirect to `/packing` or a nav page.
-
-**F. Add backend `.env.example`**
-Frontend has `.env.example` but backend does not. Add one:
+**C. CORS whitelist**
+`app.use(cors())` allows all origins. Restrict to frontend URL in production:
+```typescript
+app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000' }));
 ```
-DATABASE_URL=postgresql://myuser:mypassword@localhost:5432/oms_db?schema=public
-PORT=3001
-```
+File: `backend/src/index.ts`
 
-**G. OrderItem → ProductVariant uses `onDelete: Restrict`**
-This is intentional (preserves order history), but note: you cannot delete a ProductVariant that has associated OrderItems. Use Prisma Studio to manually clean up if needed during development.
+**D. Frontend home page (`/`) is still boilerplate**
+`frontend/src/app/page.tsx` is the default Next.js template. Replace with redirect to `/packing`.
 
-### LOW PRIORITY
-
-**H. No tests**
-Zero test coverage. Recommend adding:
-- Unit tests for `OrderService.updateOrderStatus()` state machine
-- Integration test for `PATCH /api/orders/batch/status` partial failure case
-- Frontend: test the `computeSummary()` aggregation in PackingSummaryModal
+**E. No tests**
+Recommend unit tests for `OrderService.updateOrderStatus()` state machine transitions.
 
 ---
 
-## 4. Phase 2 Integration Readiness
+## 4. Key Architectural Decisions Gemini Should Know
 
-The schema is ready for platform integrations:
+1. **Line webhook uses raw body** — the `express.json()` bypass in `index.ts` is intentional and critical. Do not remove it or re-order middleware. See decision #33.
 
-### ChannelProduct table
-Maps a platform SKU string to an internal `ProductVariant`:
-```prisma
-model ChannelProduct {
-  channel          OrderChannel  // SHOPEE | TIKTOK | LINE
-  channelSku       String        // SKU string from the platform API
-  productVariantId String        // Maps to our internal ProductVariant
-  @@unique([channel, channelSku])
-}
-```
+2. **Shopee API is abandoned** — `integrations/shopee.ts` is kept but not wired up. The CSV upload approach replaces it. Do not re-enable the old API routes unless Parn gets actual API credentials.
 
-### OrderService.createOrder()
-Ready to receive data from platform webhooks:
-- `upsert` on `channelOrderId` (idempotent — safe to call twice for same order)
-- Auto-assigns `category` and `shipByDate`
-- Accepts `channel: OrderChannel`
+3. **CSV import returns 200 with partial results** — even if some rows fail, the endpoint returns 200. Errors are in the `errors[]` array in the response body, not in HTTP status code.
 
-### Recommended integration pattern (per platform)
-1. Create `backend/src/integrations/shopee.ts` (or tiktok, line)
-2. Implement OAuth + order fetch / webhook handler
-3. Map platform order items: `platformSku → ChannelProduct → ProductVariant.id`
-4. Call `OrderService.createOrder()` with mapped data
-5. Set `syncStatus = 'SYNCED'` on success, `'FAILED'` on error
+4. **slipReceived matching is fuzzy** — the Line webhook tries to match a PENDING LINE order by `lineUserId`, falling back to the most recent PENDING LINE order with no userId. This works for sequential orders but is ambiguous for simultaneous orders. This is intentional — admin resolves manually via the SLIP badge.
 
 ---
 
@@ -209,31 +219,35 @@ Ready to receive data from platform webhooks:
 OMS-Project/
 ├── backend/
 │   ├── src/
-│   │   ├── index.ts              ← Express app + middleware setup
-│   │   ├── lib/prisma.ts         ← Singleton DB client (always import from here)
-│   │   ├── lib/logger.ts         ← pino logger
+│   │   ├── index.ts                   ← Express setup (Line webhook bypasses express.json)
+│   │   ├── lib/prisma.ts              ← Singleton DB client
+│   │   ├── lib/logger.ts              ← pino logger
 │   │   ├── routes/
-│   │   │   ├── order-routes.ts   ← /api/orders/* (batch route FIRST)
-│   │   │   └── product-routes.ts ← /api/products/*
+│   │   │   ├── order-routes.ts        ← /api/orders/*
+│   │   │   ├── product-routes.ts      ← /api/products/*
+│   │   │   └── integration-routes.ts  ← /shopee/upload + /line/webhook
+│   │   ├── integrations/
+│   │   │   ├── shopee-csv.ts          ← CSV parser
+│   │   │   ├── shopee.ts              ← Legacy (unused)
+│   │   │   └── line.ts                ← Line slip handler
 │   │   ├── middleware/
-│   │   │   ├── validate.ts       ← Zod request validation
-│   │   │   └── error-handler.ts  ← Centralized error handling
-│   │   ├── services/
-│   │   │   └── order-service.ts  ← createOrder, updateOrderStatus
-│   │   └── utils/
-│   │       └── order-utils.ts    ← getShipByDate (Bangkok TZ), getOrderCategory
+│   │   │   ├── validate.ts
+│   │   │   └── error-handler.ts
+│   │   ├── services/order-service.ts  ← All business logic
+│   │   └── utils/order-utils.ts
 │   └── prisma/
-│       ├── schema.prisma         ← DB schema source of truth (uses enums)
-│       └── seed.ts               ← 6 toppings + 4 sample orders
-├── frontend/
-│   └── src/
-│       ├── app/packing/page.tsx       ← Main packing dashboard
-│       └── components/packing/        ← OrderCard, SelectionBar, PackingSummaryModal, etc.
-├── docker-compose.yml            ← PostgreSQL 15 on port 5432
-├── CLAUDE.md                     ← Context for Claude Code sessions
-├── decision_log.md               ← Gemini's original decisions (#1–#7)
-├── decision_log_claude.md        ← Claude's decisions (#8–#27)
-└── PROJECT_REVIEW_FOR_GEMINI.md  ← This file
+│       ├── schema.prisma              ← Source of truth
+│       └── seed.ts
+├── frontend/src/
+│   ├── app/packing/page.tsx
+│   ├── components/packing/            ← All packing UI components
+│   ├── hooks/useOrders.ts
+│   └── types/index.ts
+├── docker-compose.yml
+├── CLAUDE.md
+├── decision_log.md                    ← Gemini decisions #1–#7
+├── decision_log_claude.md             ← Claude decisions #8–#40
+└── PROJECT_REVIEW_FOR_GEMINI.md       ← This file
 ```
 
 **Data model core concept:**
@@ -267,4 +281,11 @@ cd backend && npx prisma studio
 # If schema change involves converting String→Enum (DESTRUCTIVE — wipes data)
 cd backend && npx prisma db push --force-reset
 cd backend && npx prisma db seed
+
+# Test CSV upload manually
+curl -F "file=@/path/to/packing_list.csv" http://localhost:3001/api/integrations/shopee/upload
+
+# Test Line webhook locally (use ngrok to expose localhost)
+ngrok http 3001
+# Then set https://<ngrok-id>.ngrok.io/api/integrations/line/webhook in LINE console
 ```

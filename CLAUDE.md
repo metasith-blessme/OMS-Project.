@@ -101,9 +101,13 @@ State transitions are validated via `VALID_TRANSITIONS` map in `order-service.ts
 
 | File | Purpose |
 |---|---|
-| `backend/src/index.ts` | Express app setup, middleware, graceful shutdown |
+| `backend/src/index.ts` | Express app setup, middleware, graceful shutdown. Line webhook excluded from express.json() (raw body needed for HMAC) |
 | `backend/src/routes/order-routes.ts` | Order endpoints incl. batch status update |
 | `backend/src/routes/product-routes.ts` | Product + stock endpoints |
+| `backend/src/routes/integration-routes.ts` | `POST /shopee/upload` (CSV import) + `POST /line/webhook` (slip confirmation) |
+| `backend/src/integrations/shopee-csv.ts` | Shopee packing list CSV parser — normalizes Thai + English headers, groups rows by order ID |
+| `backend/src/integrations/shopee.ts` | Legacy ShopeeService (API-based, not used in production — kept for reference) |
+| `backend/src/integrations/line.ts` | Line webhook handler — HMAC validation, slip image matching, Thai auto-reply |
 | `backend/src/middleware/error-handler.ts` | Centralized error handling |
 | `backend/src/middleware/validate.ts` | Zod request validation middleware |
 | `backend/src/lib/logger.ts` | pino HTTP request logger |
@@ -113,10 +117,10 @@ State transitions are validated via `VALID_TRANSITIONS` map in `order-service.ts
 | `backend/prisma/schema.prisma` | Source of truth for all DB models |
 | `backend/prisma/seed.ts` | Seeds 6 toppings × 2 variants + 4 sample orders |
 | `frontend/src/app/packing/page.tsx` | Main packing dashboard |
-| `frontend/src/hooks/useOrders.ts` | Data fetching, 5s polling, status updates, batch update |
+| `frontend/src/hooks/useOrders.ts` | Data fetching, 5s polling, status updates, batch update, `importShopeeCSV`, `createOrder` |
 | `frontend/src/hooks/useAuth.ts` | Employee login/logout via localStorage |
-| `frontend/src/components/packing/` | OrderCard, StockTicker, FilterBar, LoginScreen, ToastContainer, SelectionBar, PackingSummaryModal |
-| `frontend/src/types/index.ts` | Shared TypeScript types |
+| `frontend/src/components/packing/` | OrderCard, StockTicker, FilterBar, LoginScreen, ToastContainer, SelectionBar, PackingSummaryModal, ImportCsvModal, NewOrderModal |
+| `frontend/src/types/index.ts` | Shared TypeScript types incl. `CreateOrderPayload`, `ImportResult` |
 | `frontend/.env.local` | `NEXT_PUBLIC_API_URL` — backend URL for frontend fetch calls |
 
 ## Important Constraints
@@ -130,6 +134,9 @@ State transitions are validated via `VALID_TRANSITIONS` map in `order-service.ts
 - **Schema changes** require `npx prisma db push`. String→Enum changes require `--force-reset`.
 - **`seed.ts` uses `upsert`** for products (safe to re-run), but sample orders will fail on duplicate `channelOrderId`. Use `--force-reset` first if re-seeding.
 - **Batch route must be declared BEFORE `/:id/status`** in `order-routes.ts` — Express would match "batch" as the `:id` param otherwise.
+- **Line webhook must use `express.raw()`** — the global `express.json()` in `index.ts` is bypassed for `/api/integrations/line/webhook` so that HMAC-SHA256 signature validation can read the raw body. Do not remove this bypass.
+- **Shopee CSV SKU resolution** requires rows in the `ChannelProduct` table (`channel='SHOPEE'`, `channelSku=<sku from CSV>`). Without mappings, every row will error. Seed this table before using CSV import in production.
+- **Line slip matching** uses `lineUserId` on the `Order` model. First match: PENDING LINE order with same `lineUserId`. Fallback: most recent PENDING LINE order with `lineUserId = null`. Admin should create the LINE order before the customer sends a slip.
 
 ## API Endpoints
 
@@ -138,13 +145,27 @@ State transitions are validated via `VALID_TRANSITIONS` map in `order-service.ts
 | GET | `/api/health` | Health check + DB connectivity |
 | GET | `/api/products` | All products with variants |
 | GET | `/api/orders?page=1&limit=50` | Paginated orders (non-FINISHED + FINISHED last 7 days) |
+| POST | `/api/orders` | Create a single order manually |
 | PATCH | `/api/orders/batch/status` | Batch status update for multiple orders |
 | PATCH | `/api/orders/:id/status` | Single order status update |
+| POST | `/api/integrations/shopee/upload` | Upload Shopee Packing List CSV (multipart, field name: `file`) |
+| POST | `/api/integrations/line/webhook` | Line Messaging API webhook (raw body, validates X-Line-Signature) |
+
+## Environment Variables
+
+### Backend (`backend/.env`)
+```
+DATABASE_URL=postgresql://...
+PORT=3001
+LINE_CHANNEL_SECRET=          # from LINE Developers Console
+LINE_CHANNEL_ACCESS_TOKEN=    # from LINE Developers Console
+```
 
 ## Phase Status
 
 - **Phase 1 (done):** DB schema, backend scaffold, packing dashboard, inventory deduction, concurrency lock
 - **Phase 1.5 (done):** Code review fixes — enums, indexes, Zod validation, route extraction, error middleware, pagination, toast notifications, component refactor, batch packing, category sections
-- **Phase 2 (next):** Shopee / TikTok Shop / Line OA API integrations — `ChannelProduct` table is ready to map platform SKUs to internal `ProductVariant` IDs
+- **Phase 2 (done):** Shopee CSV import (replaces API), Line OA slip confirmation webhook, manual order entry modal
+- **Phase 2 pending activation:** Line OA needs Messaging API credentials in `.env` + webhook URL set in LINE console. Shopee CSV needs `ChannelProduct` SKU mappings seeded.
 - **Phase 3 (pending):** Inventory management page, analytics/reporting page
 - **Phase 4 (pending):** Webhooks, stock sync back to platforms

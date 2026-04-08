@@ -10,7 +10,9 @@ interface FilterBarProps {
   setSearchQuery: (q: string) => void;
   urgencyFilter: 'ALL' | 'TODAY' | 'TOMORROW';
   setUrgencyFilter: (u: 'ALL' | 'TODAY' | 'TOMORROW') => void;
-  onSync: () => void;
+  onImportCsv: () => void;
+  onImportPdf: () => void;
+  onNewOrder: () => void;
 }
 
 export default function FilterBar({
@@ -21,7 +23,9 @@ export default function FilterBar({
   setSearchQuery,
   urgencyFilter,
   setUrgencyFilter,
-  onSync,
+  onImportCsv,
+  onImportPdf,
+  onNewOrder,
 }: FilterBarProps) {
   return (
     <div className="flex flex-col gap-5 mb-8">
@@ -68,18 +72,39 @@ export default function FilterBar({
         </button>
 
         {statusFilter === 'PENDING' && (
-          <button
-            onClick={onSync}
-            className="h-12 px-5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-orange-500/20"
-          >
-            <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">SYNC SHOPEE</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 2v6h-6" />
-              <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-              <path d="M3 22v-6h6" />
-              <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-            </svg>
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={onImportCsv}
+              className="h-12 px-4 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-lg shadow-orange-500/20"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">CSV</span>
+            </button>
+            <button
+              onClick={onImportPdf}
+              className="h-12 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-lg shadow-blue-600/20"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">PDF</span>
+            </button>
+            <button
+              onClick={onNewOrder}
+              className="h-12 px-4 bg-green-600 hover:bg-green-700 text-white rounded-2xl flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-lg shadow-green-600/20"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">ORDER</span>
+            </button>
+          </div>
         )}
       </div>
     </div>

@@ -11,6 +11,8 @@ import OrderCard, { isShipToday } from '@/components/packing/OrderCard';
 import ToastContainer from '@/components/packing/ToastContainer';
 import SelectionBar from '@/components/packing/SelectionBar';
 import PackingSummaryModal from '@/components/packing/PackingSummaryModal';
+import ImportModal from '@/components/packing/ImportModal';
+import NewOrderModal from '@/components/packing/NewOrderModal';
 
 // Category display order and labels
 const CATEGORY_SECTIONS: { key: string; label: string }[] = [
@@ -22,16 +24,19 @@ const CATEGORY_SECTIONS: { key: string; label: string }[] = [
 
 export default function PackingDashboard() {
   const { employeeName, isLoggedIn, login, logout } = useAuth();
-  const { 
-    orders, 
-    products, 
-    toasts, 
+  const {
+    orders,
+    products,
+    toasts,
     pagination,
     setPage,
-    syncShop,
-    dismissToast, 
-    updateStatus, 
-    batchUpdateStatus 
+    importShopeeCSV,
+    importShopeePDF,
+    createOrder,
+    updateStock,
+    dismissToast,
+    updateStatus,
+    batchUpdateStatus
   } = useOrders();
 
   const [statusFilter, setStatusFilter] = useState<'PENDING' | 'PACKING' | 'FINISHED'>('PENDING');
@@ -48,6 +53,9 @@ export default function PackingDashboard() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [batchLoading, setBatchLoading] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showImportPdfModal, setShowImportPdfModal] = useState(false);
+  const [showNewOrderModal, setShowNewOrderModal] = useState(false);
 
   const toggleDarkMode = useCallback(() => {
     setDarkMode(prev => {
@@ -169,7 +177,7 @@ export default function PackingDashboard() {
         </div>
       </nav>
 
-      <StockTicker products={products} />
+      <StockTicker products={products} onUpdateStock={updateStock} />
 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 pb-40">
         <FilterBar
@@ -184,7 +192,9 @@ export default function PackingDashboard() {
           setSearchQuery={setSearchQuery}
           urgencyFilter={urgencyFilter}
           setUrgencyFilter={setUrgencyFilter}
-          onSync={() => syncShop('123456')}
+          onImportCsv={() => setShowImportModal(true)}
+          onImportPdf={() => setShowImportPdfModal(true)}
+          onNewOrder={() => setShowNewOrderModal(true)}
         />
 
         {/* Long-press hint (TO PACK only, not in select mode) */}
@@ -270,6 +280,29 @@ export default function PackingDashboard() {
           onConfirm={handleConfirmBatch}
           onCancel={() => setShowSummaryModal(false)}
           loading={batchLoading}
+        />
+      )}
+
+      {showImportModal && (
+        <ImportModal
+          onClose={() => setShowImportModal(false)}
+          onImport={importShopeeCSV}
+        />
+      )}
+
+      {showImportPdfModal && (
+        <ImportModal
+          type="pdf"
+          onClose={() => setShowImportPdfModal(false)}
+          onImport={importShopeePDF}
+        />
+      )}
+
+      {showNewOrderModal && (
+        <NewOrderModal
+          products={products}
+          onClose={() => setShowNewOrderModal(false)}
+          onCreate={createOrder}
         />
       )}
 
