@@ -2,7 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Running the Project
+## Production Deployment (live as of 2026-04-08)
+
+| Layer | Service | URL |
+|---|---|---|
+| Database | Neon (Postgres, Singapore region) | `ep-broad-rice-a1jrv0ed.ap-southeast-1.aws.neon.tech/neondb` |
+| Backend | Render (free tier, Singapore) | https://oms-project-hnjf.onrender.com |
+| Frontend | Vercel | (see Vercel dashboard) |
+| Repo | GitHub | `github.com/metasith-blessme/OMS-Project.` (trailing dot in name!) |
+
+**Render free tier caveat:** backend sleeps after 15 min idle. First request after sleep takes ~30–60s to wake.
+
+**Deployment config lives in `render.yaml`** (project root). Env vars marked `sync: false` must be set manually in the Render dashboard: `DATABASE_URL`, `API_TOKEN`, `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`.
+
+**Vercel env vars required:** `NEXT_PUBLIC_API_URL` (Render backend URL) and `NEXT_PUBLIC_API_TOKEN` (must match backend `API_TOKEN`).
+
+**Deploy flow:** push to `main` → Render and Vercel both auto-deploy from GitHub.
+
+## Running the Project Locally
 
 All three components must be running together:
 
@@ -153,19 +170,33 @@ State transitions are validated via `VALID_TRANSITIONS` map in `order-service.ts
 
 ## Environment Variables
 
-### Backend (`backend/.env`)
+### Backend (`backend/.env` local, Render dashboard in prod)
 ```
-DATABASE_URL=postgresql://...
-PORT=3001
-LINE_CHANNEL_SECRET=          # from LINE Developers Console
-LINE_CHANNEL_ACCESS_TOKEN=    # from LINE Developers Console
+DATABASE_URL=postgresql://...       # local: Docker Postgres; prod: Neon pooler URL
+PORT=3001                           # Render sets its own PORT automatically
+API_TOKEN=...                       # static bearer token; must match frontend
+LINE_CHANNEL_SECRET=                # from LINE Developers Console
+LINE_CHANNEL_ACCESS_TOKEN=          # from LINE Developers Console
 ```
+
+### Frontend (`frontend/.env.local` local, Vercel dashboard in prod)
+```
+NEXT_PUBLIC_API_URL=http://localhost:3001       # prod: Render URL
+NEXT_PUBLIC_API_TOKEN=...                       # must match backend API_TOKEN
+```
+
+## Build Config Notes
+
+- **`backend/tsconfig.json`** — `rootDir` is `./src` (not `.`), so `tsc` emits `dist/index.js` directly. If you re-include `prisma/` in `include`, tsc will nest output under `dist/src/` and break `npm start` in production.
+- **`backend/package.json`** — has `postinstall: prisma generate` so Render/Vercel regenerate the Prisma client on deploy without a custom build step.
+- **`render.yaml`** — project-root blueprint; edit this (not the Render UI) for reproducible service config.
 
 ## Phase Status
 
 - **Phase 1 (done):** DB schema, backend scaffold, packing dashboard, inventory deduction, concurrency lock
 - **Phase 1.5 (done):** Code review fixes — enums, indexes, Zod validation, route extraction, error middleware, pagination, toast notifications, component refactor, batch packing, category sections
-- **Phase 2 (done):** Shopee CSV import (replaces API), Line OA slip confirmation webhook, manual order entry modal
-- **Phase 2 pending activation:** Line OA needs Messaging API credentials in `.env` + webhook URL set in LINE console. Shopee CSV needs `ChannelProduct` SKU mappings seeded.
+- **Phase 2 (done):** Shopee CSV + PDF import, Line OA slip confirmation webhook, manual order entry modal, order delete (soft CANCEL), stock edit on ticker, bearer auth, Vitest unit tests
+- **Phase 2.5 (done, 2026-04-08):** Production deployment — Neon (DB) + Render (backend) + Vercel (frontend). See "Production Deployment" section above.
+- **Phase 2 pending activation:** LINE webhook URL still needs to be pointed at `https://oms-project-hnjf.onrender.com/api/integrations/line/webhook` in LINE console and tested with a real slip. Shopee CSV needs `ChannelProduct` SKU mappings seeded in Neon.
 - **Phase 3 (pending):** Inventory management page, analytics/reporting page
 - **Phase 4 (pending):** Webhooks, stock sync back to platforms

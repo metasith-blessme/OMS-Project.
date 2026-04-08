@@ -261,6 +261,33 @@ Prisma enums serialize as the TypeScript key name in JSON (e.g. `"ONE_ITEM"`), n
 
 ---
 
+## 5b. Production Deployment (live as of 2026-04-08)
+
+The project is now deployed end-to-end on free-tier infrastructure:
+
+| Layer | Provider | URL |
+|---|---|---|
+| Database | Neon (Postgres, Singapore) | `ep-broad-rice-a1jrv0ed.ap-southeast-1.aws.neon.tech/neondb` |
+| Backend API | Render (free, Singapore) | https://oms-project-hnjf.onrender.com |
+| Frontend | Vercel | (see Vercel dashboard) |
+| Source | GitHub | `metasith-blessme/OMS-Project.` (trailing dot in name) |
+
+**Auto-deploy:** `git push origin main` triggers Render (backend) and Vercel (frontend) builds automatically.
+
+**Known caveats:**
+- Render free tier sleeps after 15 minutes idle. First request after sleep takes ~30–60s to wake.
+- Neon free tier is 0.5 GB storage — plenty for this workload.
+- Secrets from the initial deploy (API_TOKEN, LINE tokens, Neon password) should be rotated since they were exposed in chat history.
+
+**Key config files created during deployment:**
+- `render.yaml` — Render blueprint (region, build command, env var placeholders)
+- `backend/package.json` — now has `postinstall: prisma generate` so `@prisma/client` regenerates on every deploy
+- `backend/tsconfig.json` — `rootDir` set to `./src` so `tsc` emits `dist/index.js` (not `dist/src/index.js`)
+
+See `decision_log_claude.md` entries #38–44 for the full reasoning behind each deployment decision.
+
+---
+
 ## 6. Commands to Resume Development
 
 ```bash

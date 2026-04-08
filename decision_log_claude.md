@@ -250,3 +250,58 @@ Returns HTTP 409 if the requested transition is not in the allowed list.
 **Decision:** Added a "NEW ORDER" button (green, `+` icon) next to the CSV import button in FilterBar. Opens `NewOrderModal.tsx` — a form with channel selector (LINE/TIKTOK), order reference/customer name, dynamic item rows (variant dropdown + qty + price), auto-computed total.
 **Rationale:** LINE and TikTok orders originate from chat — there is no CSV export and no API. Staff must be able to create these orders manually in the dashboard. The form calls the existing `POST /api/orders` endpoint, which already exists with full Zod validation.
 **Files changed:** `NewOrderModal.tsx` (new), `FilterBar.tsx`, `packing/page.tsx`, `useOrders.ts`
+
+---
+
+# Deployment Session — 2026-04-08
+
+## 38. Production Hosting: Neon + Render + Vercel (all free tiers)
+**Decision:** Deployed the stack across three free-tier providers instead of a single all-in-one host:
+- **Neon** for Postgres (Singapore region, 0.5 GB, always-on free tier)
+- **Render** for the Express backend (Singapore, free tier — sleeps after 15 min idle)
+- **Vercel** for the Next.js frontend (free hobby plan)
+**Rationale:** The user needed a team-accessible deployment at zero cost with no credit card. Fly.io would have been always-on but now requires a card at signup. Render's 15-minute sleep is acceptable for this workload (warehouse staff use it in bursts, not 24/7). Neon was chosen over Supabase because the existing schema is pure Prisma and we didn't need auth/storage. Vercel is the obvious choice for Next.js. Splitting across providers keeps each within its free ceiling rather than hitting one provider's limits.
+**Files changed:** none (infrastructure only)
+
+---
+
+## 39. Render Blueprint (`render.yaml`) Instead of UI-Driven Config
+**Decision:** Added `render.yaml` at project root describing the backend service. Env vars marked `sync: false` are still set in the Render dashboard, but region, root directory, build/start commands, and plan all live in code.
+**Rationale:** The user landed in Render's Blueprint flow by accident, but this ended up being the right call — the config is now reproducible and committed, not trapped in a dashboard. Future redeploys or a new Render account can rebuild from the yaml.
+**Files changed:** `render.yaml` (new)
+
+---
+
+## 40. `postinstall: prisma generate` in `backend/package.json`
+**Decision:** Added a `postinstall` script that runs `prisma generate` after `npm install`. The `build` script also starts with `prisma generate` defensively.
+**Rationale:** Render (and Vercel) run `npm install` fresh on every deploy. Without `postinstall`, `@prisma/client` is installed as an empty stub and `tsc` fails because types are missing. `postinstall` ensures the client is generated before anything else touches it. Running generate twice (postinstall + build) is cheap and idempotent.
+**Files changed:** `backend/package.json`
+
+---
+
+## 41. Fixed `tsconfig.json` `rootDir` to `./src`
+**Decision:** Changed `rootDir` from `"."` to `"./src"` and removed `prisma/**/*` from `include`. Also added `dist`, `test`, `prisma` to `exclude`.
+**Rationale:** The original config had `rootDir: "."` and included both `src/**/*` and `prisma/**/*` (for `seed.ts`). TypeScript then preserved the common-ancestor directory structure, emitting `dist/src/index.js` and `dist/prisma/seed.js` instead of `dist/index.js`. This broke `npm start` in production (Render) where the start command was `node dist/index.js`. Fix: scope the build to `src/` only — `seed.ts` is still run via `ts-node` at dev time and doesn't need to be compiled into the production bundle.
+**Files changed:** `backend/tsconfig.json`
+
+---
+
+## 42. Static Bearer Token (`API_TOKEN`) Instead of Full Auth
+**Decision:** Kept the pre-existing static bearer token scheme (`API_TOKEN` env var, checked by `backend/src/middleware/auth.ts`, passed by frontend via `NEXT_PUBLIC_API_TOKEN` in `frontend/src/lib/api.ts`). Did NOT introduce user accounts, sessions, or JWT.
+**Rationale:** The user is non-technical and wanted the team using this immediately. Real auth (user accounts, password hashing, sessions) adds a week of work for no functional benefit at this team size. The bearer token is a meaningful upgrade from no auth at all — it stops random internet traffic from hitting the API. When the team grows or the app becomes customer-facing, revisit.
+**Follow-up:** The token is currently committed in chat history and should be rotated in both Render and Vercel env vars before sharing the URL broadly.
+**Files changed:** none (existing code)
+
+---
+
+## 43. GitHub Repo Name Has a Trailing Dot (`OMS-Project.`)
+**Decision:** Left the repo name as-is rather than creating a new one.
+**Rationale:** The repo was created with `OMS-Project.` (trailing period) by accident. Renaming it would break the existing remote, Render's GitHub integration, and Vercel's GitHub integration — all three would need to be reconnected. The trailing dot is cosmetic only; git and both platforms handle it fine. Leave it alone.
+**Files changed:** none
+
+---
+
+## 44. Neon Connection String Uses `?sslmode=require`
+**Decision:** Kept `sslmode=require` in the `DATABASE_URL`. Did not switch to the Neon pooler URL.
+**Rationale:** Neon requires SSL. The direct (non-pooler) connection string is sufficient for this workload — concurrent connections from Render free tier are capped at 1 worker anyway (`WEB_CONCURRENCY=1`). If we later move to a paid Render plan with multiple workers, switch to the pooler URL to avoid exhausting Neon's connection limit.
+**Files changed:** none (env var only)
